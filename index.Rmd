@@ -37,7 +37,7 @@ testing <- read.csv("./pml-testing.csv", header = TRUE, row.names = 1, na.string
 
 #Section 3 - Clean the data
 First, let's check how many NAs are in each column in the training set.
-```{r, echo=FALSE}
+```{r, echo}
 #Define a function to count the number of NAs in each column
 countNAs <- function(x) {
     as.vector(apply(x, 2, function(x) length(which(is.na(x)))))

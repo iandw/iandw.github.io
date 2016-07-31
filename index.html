@@ -100,6 +100,24 @@ testing &lt;- read.csv(&quot;./pml-testing.csv&quot;, header = TRUE, row.names =
 <div id="section-3---clean-the-data" class="section level1">
 <h1>Section 3 - Clean the data</h1>
 <p>First, let’s check how many NAs are in each column in the training set.</p>
+<pre class="r"><code>#Define a function to count the number of NAs in each column
+countNAs &lt;- function(x) {
+    as.vector(apply(x, 2, function(x) length(which(is.na(x)))))
+}
+
+#For each column in the training dataset, apply the function
+number_of_NAs_per_column &lt;- countNAs(training)
+
+#If more than 95% of the column contains NAs, 
+#remove the column from the training and testing data
+columns_to_drop &lt;- number_of_NAs_per_column &gt; .95*(nrow(training))
+
+cleaned_training &lt;- training[,!columns_to_drop]
+cleaned_testing &lt;- testing[,!columns_to_drop]
+
+#Also, we can drop the first 6 columns because they are not necessary for predicting
+cleaned_training &lt;- cleaned_training[,-c(1,2,3,4,5,6)]
+cleaned_testing &lt;- cleaned_testing[,-c(1,2,3,4,5,6)]</code></pre>
 </div>
 <div id="section-4---split-the-training-data-into-3-different-sets" class="section level1">
 <h1>Section 4 - Split the training data into 3 different sets,</h1>
