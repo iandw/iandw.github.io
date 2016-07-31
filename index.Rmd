@@ -1,0 +1,138 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "iandw"
+date: "Saturday, July 30, 2016"
+output: html_document
+---
+
+##Overview
+The purpose of this report is to understand if we can accurately  predict the class of an exercise using fitbit-like data from the following study: 
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+#Section 1 - Load required libraries and set a seed
+```{r}
+library(caret)
+set.seed(1)
+```
+
+#Section 2 - Input the data
+```{r}
+#The below are the URLs provided:
+training_data_URL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing_data_URL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+#Download the files from the URLs into the current working directory
+if(!file.exists("./pml-training.csv")){
+  download.file(training_data_URL, "./pml-training.csv")
+}
+if(!file.exists("./pml-testing.csv")){
+  download.file(testing_data_URL, "./pml-testing.csv")
+}
+
+#Read the data
+training <- read.csv("./pml-training.csv", header= TRUE, row.names = 1, na.strings=c("NA",""))
+testing <- read.csv("./pml-testing.csv", header = TRUE, row.names = 1, na.strings=c("NA",""))
+```
+
+#Section 3 - Clean the data
+First, let's check how many NAs are in each column in the training set.
+```{r, echo=FALSE}
+#Define a function to count the number of NAs in each column
+countNAs <- function(x) {
+    as.vector(apply(x, 2, function(x) length(which(is.na(x)))))
+}
+
+#For each column in the training dataset, apply the function
+number_of_NAs_per_column <- countNAs(training)
+
+#If more than 95% of the column contains NAs, 
+#remove the column from the training and testing data
+columns_to_drop <- number_of_NAs_per_column > .95*(nrow(training))
+
+cleaned_training <- training[,!columns_to_drop]
+cleaned_testing <- testing[,!columns_to_drop]
+
+#Also, we can drop the first 6 columns because they are not necessary for predicting
+cleaned_training <- cleaned_training[,-c(1,2,3,4,5,6)]
+cleaned_testing <- cleaned_testing[,-c(1,2,3,4,5,6)]
+```
+
+#Section 4 - Split the training data into 3 different sets,
+#Then split each of these 3 sets into a training and testing set
+This will allow for us to test using the training data on 3 different sets,
+without touching the actual testing data yet.
+```{r} 
+#Create data set 1 
+ids_in_dataset1 <- createDataPartition(cleaned_training$classe, p = 0.33, list=FALSE)
+dataset1 <- cleaned_training[ids_in_dataset1,]
+remaining_training <- cleaned_training[-ids_in_dataset1,]
+
+#Create data set 2 and 3
+ids_in_dataset2 <- createDataPartition(remaining_training$classe, p = 0.5, list=FALSE)
+dataset2 <- remaining_training[ids_in_dataset2,]
+dataset3 <- remaining_training[-ids_in_dataset2,]
+
+#Split data set 1 into training and testing
+inTraining1 <- createDataPartition(dataset1$classe, p=.6, list=FALSE)
+training1 <- dataset1[inTraining1,]
+testing1 <- dataset1[-inTraining1,]
+
+#Split data set 2 into training and testing
+inTraining2 <- createDataPartition(dataset2$classe, p=.6, list=FALSE)
+training2 <-dataset2[inTraining2,]
+testing2 <- dataset2[-inTraining2,]
+
+#Split data set 3 into training and testing
+inTraining3<- createDataPartition(dataset2$classe, p=.6, list=FALSE)
+training3 <-dataset3[inTraining3,]
+testing3 <-dataset3[-inTraining3,]
+
+```
+
+#Section 5 - Build models to see what works best
+Now let's try to build 3 different models (using cross-validation for each one) to predict the class of the activity, and check which of the 3 models has the best accuracy, on the training data they used. 
+
+```{r}
+model1_rf <- train(training1$classe ~ ., 
+                   method="rf", 
+                   preProcess=c("center", "scale"), 
+                   trControl=trainControl(method = "cv", number = 3), 
+                   data=training1)
+
+model2_gbm <- train(training2$classe ~ ., 
+                   method="gbm", 
+                   preProcess=c("center", "scale"), 
+                   trControl=trainControl(method = "cv", number = 3), 
+                   data=training2)
+
+model3_lda <- train(training3$classe ~ ., 
+                   method="lda", 
+                   preProcess=c("center", "scale"), 
+                   trControl=trainControl(method = "cv", number = 3), 
+                   data=training3)
+
+print(model1_rf, digits=3)
+print(model2_gbm, digits=3)
+print(model3_lda, digits=3)
+```
+
+#Section 6 - Evaluate accuracy and out of sample error for all 3 models on their respective test sets.
+Based on the below results, it appears the random forest model (model 1) had the greatest accuracy (and therefore the lowest out of sample error) on its respective test set.
+Note: The out of sample error (1 - accuracy) for this model was the lowest, coming in at: 
+1-0.979 = 0.021.
+```{r}
+pred1 <- predict(model1_rf, testing1)
+pred2 <- predict(model2_gbm, testing2)
+pred3 <- predict(model3_lda, testing3)
+
+print(confusionMatrix(pred1, testing1$classe), digits=3)
+print(confusionMatrix(pred2, testing2$classe), digits=3)
+print(confusionMatrix(pred3, testing3$classe), digits=3)
+
+```
+
+#Section 7 - Use the random forest model to predict against the 20 observations in the test set provided
+```{r}
+print(predict(model1_rf, newdata=cleaned_testing))
+```
